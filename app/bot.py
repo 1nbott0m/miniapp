@@ -60,10 +60,14 @@ def create_dispatcher(settings: Settings, service=None):
         if value in {"+", "+1"} and m.from_user:
             p=service.request_plus(m.chat.id, m.from_user.id, m.message_id, __import__('datetime').datetime.now(__import__('datetime').timezone.utc))
             if p:
+                # Main Mini App links are supported from group chats.  Keep the
+                # challenge context in startapp so the app can render the right
+                # shift without sending the user through a private chat.
                 bot_user = await m.bot.get_me()
-                deep_link = f"https://t.me/{bot_user.username}?start=challenge_{m.chat.id}_{m.from_user.id}_{p.message_id}"
+                startapp = f"challenge_{m.chat.id}_{m.from_user.id}_{p.message_id}"
+                deep_link = f"https://t.me/{bot_user.username}?startapp={startapp}"
                 markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Открыть проверку", url=deep_link)]])
-                sent = await m.answer("Для подтверждения заявки откройте личный чат с ботом и пройдите проверку.", reply_markup=markup, reply_to_message_id=m.message_id)
+                sent = await m.answer("Нажмите кнопку и пройдите проверку — заявка будет принята после успешной проверки.", reply_markup=markup, reply_to_message_id=m.message_id)
                 p.message_id=sent.message_id
     @router.message(F.web_app_data)
     async def web_app_result(m: Message):
