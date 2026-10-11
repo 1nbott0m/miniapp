@@ -1,7 +1,7 @@
-import asyncio, json, logging
+import asyncio, logging
 from aiogram import Bot, Dispatcher, Router, F
 from aiogram.filters import Command
-from aiogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+from aiogram.types import Message
 from .config import Settings
 from .domain import RegistrationService
 from .telegram_gateway import TelegramGateway
@@ -46,8 +46,7 @@ def create_dispatcher(settings: Settings, service=None):
         if user_id != m.from_user.id or (chat_id, user_id) not in service.pending:
             await m.answer("Эта заявка устарела или уже подтверждена.")
             return
-        markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Пройти проверку", web_app=WebAppInfo(url=f"{settings.mini_app_url}?chat_id={chat_id}&user_id={user_id}&challenge={challenge_id}"))]])
-        await m.answer("Нажмите кнопку ниже и пройдите проверку.", reply_markup=markup)
+        await m.answer("Проверка через мини-приложение отключена.")
     @router.message(F.text)
     async def text(m: Message):
         # Typical shift announcements are ordinary admin messages, not commands.
@@ -58,37 +57,7 @@ def create_dispatcher(settings: Settings, service=None):
             return
         value=(m.text or "").strip().replace("＋", "+").lower()
         if value in {"+", "+1"} and m.from_user:
-            p=service.request_plus(m.chat.id, m.from_user.id, m.message_id, __import__('datetime').datetime.now(__import__('datetime').timezone.utc))
-            if p:
-                # Main Mini App links are supported from group chats.  Keep the
-                # challenge context in startapp so the app can render the right
-                # shift without sending the user through a private chat.
-                bot_user = await m.bot.get_me()
-                startapp = f"challenge_{m.chat.id}_{m.from_user.id}_{p.message_id}"
-                deep_link = f"https://t.me/{bot_user.username}?startapp={startapp}"
-                markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Открыть проверку", url=deep_link)]])
-                sent = await m.answer("Нажмите кнопку и пройдите проверку — заявка будет принята после успешной проверки.", reply_markup=markup, reply_to_message_id=m.message_id)
-                p.message_id=sent.message_id
-    @router.message(F.web_app_data)
-    async def web_app_result(m: Message):
-        if not m.from_user or not m.web_app_data:
-            return
-        try:
-            data = json.loads(m.web_app_data.data)
-        except (TypeError, json.JSONDecodeError):
-            return
-        if data.get("type") != "captcha_verified" or not data.get("token"):
-            return
-        source_chat_id = int(data.get("chat_id", m.chat.id))
-        user_id = m.from_user.id
-        pending = service.pending.get((source_chat_id, user_id))
-        if service.confirm_webapp(source_chat_id, user_id):
-            await m.answer("Заявка принята. Вы добавлены в очередь.")
-            if pending:
-                try:
-                    await m.bot.delete_message(source_chat_id, pending.message_id)
-                except Exception:
-                    logging.exception("Could not clean up Mini App prompt")
+            await m.answer("Проверка отключена, заявки не принимаются.")
         elif m.from_user and ((m.reply_to_message is not None) or (m.chat.id, m.from_user.id) in service.pending):
             now=__import__('datetime').datetime.now(__import__('datetime').timezone.utc)
             pending = service.pending.get((m.chat.id, m.from_user.id))
